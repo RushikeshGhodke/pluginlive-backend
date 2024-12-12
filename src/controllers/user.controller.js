@@ -345,8 +345,47 @@ const resetPassword = asyncHandler(async (req, res) => {
     res.status(200).json({ message: 'Password reset successfully' });
 });
 
+const editUser = asyncHandler(async (req, res) => {
+    const { fullname, username, email, college, course, yearOfStudy, role, country, state } = req.body;
 
-  
+    if ([fullname, username, email].some((field) => field?.trim() === "")) {
+        throw new ApiError(400, "Fullname, username, and email are required.");
+    }
+
+    const existingUser = await User.findOne({
+        $or: [
+            { username: username.toLowerCase(), _id: { $ne: req.user._id } },
+            { email, _id: { $ne: req.user._id } },
+        ],
+    });
+
+    if (existingUser) {
+        throw new ApiError(409, "Username or email already in use by another user.");
+    }
+
+    const updatedFields = {
+        fullname,
+        username: username.toLowerCase(),
+        email,
+        college,
+        course,
+        yearOfStudy,
+        role,
+        country,
+        state,
+    };
+
+    const updatedUser = await User.findByIdAndUpdate(req.user._id, updatedFields, {
+        new: true,
+        runValidators: true,
+    }).select("-password -refreshToken");
+
+    if (!updatedUser) {
+        throw new ApiError(500, "Failed to update user.");
+    }
+
+    return res.status(200).json(new ApiResponse(200, updatedUser, "User updated successfully"));
+});
 
 export {
     registerUser,
@@ -355,6 +394,7 @@ export {
     refreshAccessToken,
     changeCurrentPassword,
     getCurrentUser,
+    editUser,
     updateAvatarImage,
     getCurrentUserProfile,
     forgotPassword,
